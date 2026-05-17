@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Maintenance Rota</title>
+    
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    
+    <style>
+        :root {
+            --bg-color: #121212;
+            --card-bg: #1e1e1e;
+            --accent-color: #bb86fc;
+            --text-color: #e0e0e0;
+            --text-muted: #a0a0a0;
+            --border-color: #333333;
+            --e-color: #4caf50; /* Early - Green */
+            --m-color: #2196f3; /* Middle - Blue */
+            --l-color: #ff9800; /* Late - Orange */
+            --off-color: #757575; /* Off - Grey */
+            --oncall-color: #e91e63; /* On-Call - Pink/Purple */
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background-color: var(--bg-color); color: var(--text-color); padding: 15px; padding-bottom: 50px; }
+        
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        h2 { font-weight: 500; font-size: 1.4rem; }
+        
+        .btn { background: var(--card-bg); border: 1px solid var(--border-color); color: var(--text-color); padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 0.9rem; }
+        .btn-active { background: var(--accent-color); color: #000; font-weight: bold; }
+
+        /* Calendar Layout */
+        .calendar-nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; background: var(--card-bg); padding: 10px; border-radius: 8px; border: 1px solid var(--border-color); }
+        .days-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; margin-bottom: 20px; }
+        .day-name { text-align: center; color: var(--text-muted); font-size: 0.8rem; padding: 5px 0; font-weight: bold; }
+        .day-cell { background: var(--card-bg); border: 1px solid var(--border-color); aspect-ratio: 1; border-radius: 6px; display: flex; flex-direction: column; justify-content: space-between; padding: 4px; position: relative; cursor: pointer; font-size: 0.9rem; }
+        .day-cell.today { border-color: var(--accent-color); box-shadow: 0 0 5px var(--accent-color); }
+        .day-cell.selected { background: #2d2d2d; border-color: #fff; }
+        .day-cell.empty { background: transparent; border: none; cursor: default; }
+        
+        /* Shift Dots inside Calendar Cells */
+        .dots-container { display: flex; gap: 2px; justify-content: center; width: 100%; height: 6px; }
+        .dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+
+        /* Details Panel */
+        .details-card { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 15px; margin-bottom: 15px; }
+        .details-title { font-size: 1.1rem; margin-bottom: 15px; color: var(--accent-color); border-bottom: 1px solid var(--border-color); padding-bottom: 5px; }
+        .colleague-row { display: flex; flex-direction: column; padding: 12px 0; border-bottom: 1px solid #2a2a2a; gap: 8px; }
+        @media(min-width: 360px) {
+            .colleague-row { flex-direction: row; justify-content: space-between; align-items: center; }
+        }
+        .colleague-row:last-child { border-bottom: none; }
+        .colleague-name { font-weight: 500; }
+        
+        /* Shift Badges & Selectors */
+        .badge-container { display: flex; gap: 5px; align-items: center; }
+        .shift-badge { padding: 4px 8px; border-radius: 6px; font-size: 0.8rem; font-weight: bold; color: #fff; text-align: center; min-width: 45px; }
+        .shift-E { background-color: var(--e-color); }
+        .shift-M { background-color: var(--m-color); }
+        .shift-L { background-color: var(--l-color); }
+        .shift-OFF { background-color: var(--off-color); color: #000; }
+        .oncall-badge { background-color: var(--oncall-color); padding: 4px 8px; border-radius: 6px; font-size: 0.8rem; font-weight: bold; color: #fff; }
+        
+        .controls-container { display: flex; gap: 8px; align-items: center; }
+        .shift-selector { display: flex; gap: 4px; }
+        .shift-opt { width: 34px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 6px; font-size: 0.8rem; font-weight: bold; border: 1px solid var(--border-color); background: #252525; color: var(--text-color); cursor: pointer; }
+        .shift-opt.active { border-color: #fff; transform: scale(1.05); }
+        
+        .btn-oncall { background: #252525; border: 1px solid var(--border-color); color: var(--text-muted); padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: 0.8rem; font-weight: bold; }
+        .btn-oncall.active { background: var(--oncall-color); color: #fff; border-color: #fff; }
+        
+        .legend { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 15px; background: var(--card-bg); padding: 10px; border-radius: 8px; border: 1px solid var(--border-color); font-size: 0.75rem; color: var(--text-muted); }
+        .legend-item { display: flex; align-items: center; gap: 5px; }
+        .legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+
+        .status-indicator { text-align: center; font-size: 0.8rem; color: var(--text-muted); margin-top: 10px; }
+    </style>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyA-HFOHMkgfY3JqE8NLNpEpkJrGIyLPo_I",
+            authDomain: "maitenance-rota.firebaseapp.com",
+            projectId: "maitenance-rota",
+            storageBucket: "maitenance-rota.firebasestorage.app",
+            messagingSenderId: "857294086831",
+            appId: "1:857294086831:web:cc43df537fd01ad74faa5a",
+            measurementId: "G-FF44DTCS3Q"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        const todayDate = new Date();
+        let currentYear = todayDate.getFullYear();
+        let currentMonth = todayDate.getMonth(); 
+        let selectedDateStr = "";
+        let isEditMode = false;
+        const SECRET_PIN = "1234"; 
+        
+        // Team Members List
+        const colleagues = ["Me", "Colleague 1", "Colleague 2", "Colleague 3"];
+        const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+        
+        let rotaData = {};
+
+        const rotaDocRef = doc(db, "rotas", "current_rota");
+        onSnapshot(rotaDocRef, (docSnap) => {
+            if (docSnap.exists()) {
+                rotaData = docSnap.data();
+            } else {
+                rotaData = {};
+            }
+            renderCalendar();
+            if (selectedDateStr) {
+                showDetails(selectedDateStr);
+            }
+            document.getElementById("status").innerText = "Data Synced ✓";
+        });
+
+        function renderCalendar() {
+            const grid = document.getElementById("calendarGrid");
+            grid.innerHTML = "";
+            
+            document.getElementById("monthLabel").innerText = `${monthNames[currentMonth]} ${currentYear}`;
+
+            const dayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+            dayLabels.forEach(d => {
+                let div = document.createElement("div");
+                div.className = "day-name";
+                div.innerText = d;
+                grid.appendChild(div);
+            });
+
+            const firstDay = new Date(currentYear, currentMonth, 1).getDay();
+            const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+            
+            let startOffset = firstDay === 0 ? 6 : firstDay - 1;
+
+            for (let i = 0; i < startOffset; i++) {
+                let div = document.createElement("div");
+                div.className = "day-cell empty";
+                grid.appendChild(div);
+            }
+
+            const today = new Date();
+            for (let day = 1; day <= daysInMonth; day++) {
+                let cell = document.createElement("div");
+                cell.className = "day-cell";
+                
+                const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                cell.dataset.date = dateStr;
+
+                let numSpan = document.createElement("span");
+                numSpan.innerText = day;
+                cell.appendChild(numSpan);
+
+                if (today.getFullYear() === currentYear && today.getMonth() === currentMonth && today.getDate() === day) {
+                    cell.classList.add("today");
+                }
+                
+                if (selectedDateStr === dateStr) {
+                    cell.classList.add("selected");
+                }
+
+                let dotsContainer = document.createElement("div");
+                dotsContainer.className = "dots-container";
+                
+                if (rotaData[dateStr]) {
+                    colleagues.forEach(col => {
+                        const colData = rotaData[dateStr][col] || {};
+                        const shift = colData.shift || "OFF";
+                        const isOnCall = colData.onCall || false;
+
+                        if (shift !== "OFF") {
+                            let dot = document.createElement("span");
+                            dot.className = "dot";
+                            if (shift === "E") dot.style.backgroundColor = "var(--e-color)";
+                            if (shift === "M") dot.style.backgroundColor = "var(--m-color)";
+                            if (shift === "L") dot.style.backgroundColor = "var(--l-color)";
+                            dotsContainer.appendChild(dot);
+                        }
+                        // If someone is On-Call, add a tiny pink dot as well
+                        if (isOnCall) {
+                            let dot = document.createElement("span");
+                            dot.className = "dot";
+                            dot.style.backgroundColor = "var(--oncall-color)";
+                            dotsContainer.appendChild(dot);
+                        }
+                    });
+                }
+                cell.appendChild(dotsContainer);
+
+                cell.addEventListener("click", () => {
+                    document.querySelectorAll(".day-cell").forEach(c => c.classList.remove("selected"));
+                    cell.classList.add("selected");
+                    selectedDateStr = dateStr;
+                    showDetails(dateStr);
+                });
+
+                grid.appendChild(cell);
+            }
+            
+            if (!selectedDateStr) {
+                let d = today.getMonth() === currentMonth ? today.getDate() : 1;
+                selectedDateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                showDetails(selectedDateStr);
+            }
+        }
+
+        function showDetails(dateStr) {
+            const container = document.getElementById("detailsContainer");
+            container.innerHTML = "";
+
+            const parts = dateStr.split("-");
+            const displayDate = `${parts[2]} ${monthNames[parseInt(parts[1])-1]} ${parts[0]}`;
+            document.getElementById("selectedDateTitle").innerText = displayDate;
+
+            const dayData = rotaData[dateStr] || {};
+
+            colleagues.forEach(col => {
+                let row = document.createElement("div");
+                row.className = "colleague-row";
+
+                let nameSpan = document.createElement("span");
+                nameSpan.className = "colleague-name";
+                nameSpan.innerText = col;
+                row.appendChild(nameSpan);
+
+                const colData = dayData[col] || { shift: "OFF", onCall: false };
+                let currentShift = colData.shift || "OFF";
+                let isOnCall = colData.onCall || false;
+
+                if (isEditMode) {
+                    let controls = document.createElement("div");
+                    controls.className = "controls-container";
+
+                    // Shift picker
+                    let selector = document.createElement("div");
+                    selector.className = "shift-selector";
+                    ["E", "M", "L", "OFF"].forEach(opt => {
+                        let btn = document.createElement("button");
+                        btn.className = `shift-opt ${currentShift === opt ? 'active' : ''}`;
+                        if (opt === "E") btn.style.color = "var(--e-color)";
+                        if (opt === "M") btn.style.color = "var(--m-color)";
+                        if (opt === "L") btn.style.color = "var(--l-color)";
+                        btn.innerText = opt;
+                        
+                        btn.addEventListener("click", () => {
+                            updateData(dateStr, col, opt, isOnCall);
+                        });
+                        selector.appendChild(btn);
+                    });
+                    controls.appendChild(selector);
+
+                    // On-Call Toggle Button
+                    let callBtn = document.createElement("button");
+                    callBtn.className = `btn-oncall ${isOnCall ? 'active' : ''}`;
+                    callBtn.innerText = "📞 On Call";
+                    callBtn.addEventListener("click", () => {
+                        updateData(dateStr, col, currentShift, !isOnCall);
+                    });
+                    controls.appendChild(callBtn);
+
+                    row.appendChild(controls);
+                } else {
+                    let badges = document.createElement("div");
+                    badges.className = "badge-container";
+
+                    let badge = document.createElement("span");
+                    badge.className = `shift-badge shift-${currentShift}`;
+                    badge.innerText = currentShift;
+                    badges.appendChild(badge);
+
+                    if (isOnCall) {
+                        let ocBadge = document.createElement("span");
+                        ocBadge.className = "oncall-badge";
+                        ocBadge.innerText = "📞 On Call";
+                        badges.appendChild(ocBadge);
+                    }
+
+                    row.appendChild(badges);
+                }
+
+                container.appendChild(row);
+            });
+        }
+
+        async function updateData(dateStr, colleague, shift, onCall) {
+            document.getElementById("status").innerText = "Saving...";
+            if (!rotaData[dateStr]) rotaData[dateStr] = {};
+            rotaData[dateStr][colleague] = { shift: shift, onCall: onCall };
+            
+            try {
+                await setDoc(rotaDocRef, rotaData);
+            } catch (e) {
+                alert("Error saving data: " + e.message);
+            }
+        }
+
+        document.getElementById("editBtn").addEventListener("click", () => {
+            if (isEditMode) {
+                isEditMode = false;
+                document.getElementById("editBtn").classList.remove("btn-active");
+                document.getElementById("editBtn").innerText = "Edit";
+                showDetails(selectedDateStr);
+            } else {
+                let pin = prompt("Enter PIN to enable editing:");
+                if (pin === SECRET_PIN) {
+                    isEditMode = true;
+                    document.getElementById("editBtn").classList.add("btn-active");
+                    document.getElementById("editBtn").innerText = "Done (Lock)";
+                    showDetails(selectedDateStr);
+                } else if (pin !== null) {
+                    alert("Incorrect PIN!");
+                }
+            }
+        });
+
+        document.getElementById("prevMonth").addEventListener("click", () => {
+            currentMonth--;
+            if (currentMonth < 0) { currentMonth = 11; currentYear--; }
+            selectedDateStr = "";
+            renderCalendar();
+        });
+
+        document.getElementById("nextMonth").addEventListener("click", () => {
+            currentMonth++;
+            if (currentMonth > 11) { currentMonth = 0; currentYear++; }
+            selectedDateStr = "";
+            renderCalendar();
+        });
+
+        renderCalendar();
+    </script>
+</head>
+<body>
+
+    <div class="header">
+        <h2>Maintenance Rota</h2>
+        <button class="btn" id="editBtn">Edit</button>
+    </div>
+
+    <div class="calendar-nav">
+        <button class="btn" id="prevMonth">◀</button>
+        <span id="monthLabel" style="font-weight: bold;"></span>
+        <button class="btn" id="nextMonth">▶</button>
+    </div>
+
+    <div class="legend">
+        <div class="legend-item"><span class="legend-dot" style="background: var(--e-color)"></span> E: 7:00-15:30</div>
+        <div class="legend-item"><span class="legend-dot" style="background: var(--m-color)"></span> M: 8:00-16:30</div>
+        <div class="legend-item"><span class="legend-dot" style="background: var(--l-color)"></span> L: 10:30-19:00</div>
+        <div class="legend-item"><span class="legend-dot" style="background: var(--oncall-color)"></span> 📞 On Call</div>
+    </div>
+
+    <div class="days-grid" id="calendarGrid"></div>
+
+    <div class="details-card">
+        <div class="details-title" id="selectedDateTitle">Select a date</div>
+        <div id="detailsContainer"></div>
+    </div>
+
+    <div class="status-indicator" id="status">Connecting to Database...</div>
+
+</body>
+</html>
